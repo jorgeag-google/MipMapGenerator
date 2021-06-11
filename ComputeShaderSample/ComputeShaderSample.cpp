@@ -96,7 +96,7 @@ int __cdecl main()
         return 1;
     printf("done\n");
 
-    const wchar_t* shader_file = L"PassConstantExperiment.hlsl";
+    const wchar_t* shader_file = L"GenerateMip.hlsl";
     //const wchar_t* shader_file = L"Desaturate.hlsl";
     printf("Creating Compute Shader from file: %S... ", shader_file);
    
@@ -104,12 +104,24 @@ int __cdecl main()
         return 1;
     printf("done\n");
 
-    const char* file_name = "textures/input2.jpg";
+    const char* file_name = "textures/input.jpg";
     printf("Loading image from file: %s... ", file_name);
     ImageData input_image{std::string(file_name)};
-    CreateStructuredBuffer(g_pDevice, sizeof(Pixel), input_image.width * input_image.height, input_image.pixels, &g_pBuf0);
-    CreateStructuredBuffer(g_pDevice, sizeof(Pixel), input_image.width * input_image.height, nullptr, &g_pBufResult);
     printf("%s\n", input_image.print().c_str());
+
+    printf("Creating dst image placeholder... ");
+    ImageData output_image;
+    output_image.width = input_image.width / 2;
+    output_image.height = input_image.height / 2;
+    output_image.original_channels = input_image.original_channels;
+    output_image.desired_channels = input_image.desired_channels;
+    output_image.level = input_image.level - 1;
+    output_image.size = output_image.width * output_image.height * output_image.desired_channels;
+    printf("%s\n", output_image.print().c_str());
+
+    CreateStructuredBuffer(g_pDevice, sizeof(Pixel), input_image.width * input_image.height, input_image.pixels, &g_pBuf0);
+    CreateStructuredBuffer(g_pDevice, sizeof(Pixel), output_image.width * output_image.height, nullptr, &g_pBufResult);
+   
     
     //CreateStructuredBuffer(g_pDevice, sizeof(BufType), NUM_ELEMENTS, &g_vBuf0[0], &g_pBuf0);
     //CreateStructuredBuffer(g_pDevice, sizeof(BufType), NUM_ELEMENTS, &g_vBuf1[0], &g_pBuf1);
@@ -142,15 +154,13 @@ int __cdecl main()
 #endif
 
     printf("done\n");
-
-    
     
     printf("Prepairing data for shader...");
     ShaderConstantData csConstants;
     csConstants.src_width = input_image.width;
     csConstants.src_height = input_image.height;
-    csConstants.dst_width = input_image.width;
-    csConstants.dst_height = input_image.height;
+    csConstants.dst_width = output_image.width;
+    csConstants.dst_height = output_image.height;
     if (FAILED(CreateConstantBuffer(g_pDevice, sizeof(csConstants), &csConstants, &g_pConstantBuffer))) {
         printf("Unable to create constant buffer...\n");
     }
@@ -162,7 +172,7 @@ int __cdecl main()
     //RunComputeShader(g_pContext, g_pCS, 1, aRViews, nullptr, nullptr, 0, g_pBufResultUAV, input_image.width, input_image.height, 1);
     RunComputeShader(g_pContext, g_pCS, 1, aRViews, 
             g_pConstantBuffer, &csConstants, sizeof(csConstants), 
-            g_pBufResultUAV, input_image.width, input_image.height, 1);
+            g_pBufResultUAV, output_image.width, output_image.height, 1);
     printf("done\n");
 
     // Read back the result from GPU, and saving as an image into disk
@@ -180,16 +190,9 @@ int __cdecl main()
         printf("Write results to disk...\n");
         {
             const char* out_file_name = "textures/output.jpg";
-            ImageData output_image;
-            output_image.width = input_image.width;
-            output_image.height = input_image.height;
-            output_image.size = input_image.size;
-            output_image.desired_channels = input_image.desired_channels;
-            output_image.original_channels = input_image.original_channels;
-            output_image.level = input_image.level;
             output_image.pixels = reinterpret_cast<unsigned char*>(p); // Borrow the data from p for a momment
             printf("Saving %s : %s\n", out_file_name, output_image.save(std::string(out_file_name)) ? "success" : "fail");
-            output_image.pixels = nullptr; // Since we do not own this data, (we cannot free it), we just borrowed from p to writing it
+            output_image.pixels = nullptr; // Since we do not own this data, we cannot free it. We just borrowed from p to writing it
         }
         g_pContext->Unmap(resultbuf, 0);
 
