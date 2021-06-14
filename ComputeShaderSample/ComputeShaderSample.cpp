@@ -73,12 +73,23 @@ struct Pixel {
 // For the constant data
 // This struct needs to ba aligned by 16 bytes
 // i. e. sizeof(ShaderConstantData) % 16 == 0
-struct ShaderConstantData
+struct alignas(16) ShaderConstantData
 {
+    // width and height of the source texture
     int src_width;
     int src_height;
+    // width and height of the destination texture. 
+    // we will calculate them by halving the source texture ones.
     int dst_width;
     int dst_height;
+    // Filter dimensions depends on the dimensions of the src texture
+    // 0 - both are even
+    // 1 - width is even and height is odd
+    // 2 - width is odd and height is even
+    // 3 - both are odd
+    int dimension_case;
+    // TODO: will choose which filter use to interpolate. By default is bi-linear
+    int filter_option;
 };
 
 //--------------------------------------------------------------------------------------
@@ -104,7 +115,7 @@ int __cdecl main()
         return 1;
     printf("done\n");
 
-    const char* file_name = "textures/input.jpg";
+    const char* file_name = "textures/test02.jpg";
     printf("Loading image from file: %s... ", file_name);
     ImageData input_image{std::string(file_name)};
     printf("%s\n", input_image.print().c_str());
@@ -115,18 +126,16 @@ int __cdecl main()
     output_image.height = input_image.height / 2;
     output_image.original_channels = input_image.original_channels;
     output_image.desired_channels = input_image.desired_channels;
-    output_image.level = input_image.level - 1;
+    output_image.level = input_image.level + 1;
     output_image.size = output_image.width * output_image.height * output_image.desired_channels;
     printf("%s\n", output_image.print().c_str());
 
     CreateStructuredBuffer(g_pDevice, sizeof(Pixel), input_image.width * input_image.height, input_image.pixels, &g_pBuf0);
     CreateStructuredBuffer(g_pDevice, sizeof(Pixel), output_image.width * output_image.height, nullptr, &g_pBufResult);
    
-    
     //CreateStructuredBuffer(g_pDevice, sizeof(BufType), NUM_ELEMENTS, &g_vBuf0[0], &g_pBuf0);
     //CreateStructuredBuffer(g_pDevice, sizeof(BufType), NUM_ELEMENTS, &g_vBuf1[0], &g_pBuf1);
     //CreateStructuredBuffer(g_pDevice, sizeof(BufType), NUM_ELEMENTS, nullptr, &g_pBufResult);
-
 
 #if defined(_DEBUG) || defined(PROFILE)
     if (g_pBuf0)
@@ -161,6 +170,14 @@ int __cdecl main()
     csConstants.src_height = input_image.height;
     csConstants.dst_width = output_image.width;
     csConstants.dst_height = output_image.height;
+    // If width is even
+    if ((input_image.width % 2) == 0) {
+        // Test the height
+        csConstants.dimension_case = (input_image.height % 2) == 0 ? 0 : 1;
+    } else { // width is odd
+        // Test the height
+        csConstants.dimension_case = (input_image.height % 2) == 0 ? 2 : 3;
+    }
     if (FAILED(CreateConstantBuffer(g_pDevice, sizeof(csConstants), &csConstants, &g_pConstantBuffer))) {
         printf("Unable to create constant buffer...\n");
     }
