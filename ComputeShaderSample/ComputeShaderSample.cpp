@@ -115,7 +115,7 @@ int __cdecl main()
         return 1;
     printf("done\n");
 
-    const char* file_name = "textures/test02.jpg";
+    const char* file_name = "textures/input.jpg";
     printf("Loading image from file: %s... ", file_name);
     ImageData input_image{std::string(file_name)};
     printf("%s\n", input_image.print().c_str());

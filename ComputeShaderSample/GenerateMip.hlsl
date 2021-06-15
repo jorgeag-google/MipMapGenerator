@@ -1,21 +1,27 @@
 cbuffer ShaderConstantData : register(b0) {
+	// Dimensions in pixels of the source texture
 	int src_width;
-	int src_height;
+	int src_height; 
+	// Dimensions in pixels of the destination texture
 	int dst_width;
 	int dst_height;
+	// Case to filter according the parity of the dimensions in the src texture. 
+	// Must be one of 0, 1, 2 or 3
+	// See CSMain function bellow
 	int dimension_case;
+	// Ignored for now, if we want to use a different filter startegy. Current one is bi-linear filter
 	int filter_option;
 };
 
 struct Pixel
 {
-	int colour; // It's is an RGBA pixel
+	int colour; // It's is a 32 bits RGBA pixel. Where each channel has 8bits
 };
 
-StructuredBuffer<Pixel> Buffer0 : register(t0);
-RWStructuredBuffer<Pixel> BufferOut : register(u0);
+StructuredBuffer<Pixel> Buffer0 : register(t0); // Source texture
+RWStructuredBuffer<Pixel> BufferOut : register(u0); // Destination texture
 
-// Helper function to fetch/write values into the textures
+// Helper functions to fetch/write values into the textures
 void writeToPixel(int x, int y, float3 colour);
 float3 readPixel(int x, int y);
 
@@ -30,9 +36,10 @@ void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
 {
 	// Calculate the coordinates of the top left corner of the neighbourhood
 	int2 coordInSrc = 2 * dispatchThreadID.xy;
-	// Get the filtered value from the src texture's neighbourhood
+	
 	float3 resultingPixel = float3(0.0f, 0.0f, 0.0f);
-	// Choose the correc case according to src texture dimensions
+	// Get the filtered value from the src texture's neighbourhood
+	// Choose the correct case according to src texture dimensions
 	switch (dimension_case) {
 		case 0: // Both dimension are even
 			resultingPixel = computePixelEvenEven(coordInSrc);
@@ -130,7 +137,7 @@ float3 computePixelOddEven(int2 srcCoords) {
 // This neighbourhood has size 3x3 (in math matices notation)
 float3 computePixelOddOdd(int2 srcCoords) {
 	float3 resultPixel = float3(0.0f, 0.0f, 0.0f);
-	//We will need a 3x2 neighbourhood sampling
+	//We will need a 3x3 neighbourhood sampling
 	const int2 neighbours[3][3] = {
 		{ {srcCoords.x, srcCoords.y    }, {srcCoords.x + 1, srcCoords.y    }, {srcCoords.x + 2, srcCoords.y    } },
 		{ {srcCoords.x, srcCoords.y + 1}, {srcCoords.x + 1, srcCoords.y + 1}, {srcCoords.x + 2, srcCoords.y + 1} },
@@ -140,7 +147,7 @@ float3 computePixelOddOdd(int2 srcCoords) {
 	const float coeficients[3][3] = {
 									  { 0.0625f, 0.125f, 0.0625f},
 									  { 0.125f,  0.25f,  0.125f},
-									  { 0.0625,  0.125f, 0.0625f}
+									  { 0.0625f,  0.125f, 0.0625f}
 	};
 	// Perform the filtering by convolution
 	for (int j = 0; j < 3; j++) {
@@ -150,23 +157,34 @@ float3 computePixelOddOdd(int2 srcCoords) {
 	}
 	return resultPixel;
 }
-
+// Write the colour to the destitantion texture at pixle coordinates (x,y)
+// in order to work propartlly x must be in [0, dst_width) and y in [0, dst_height]
+// otherwise a different pixel might be written
 void writeToPixel(int x, int y, float3 colour) {
+	// Since image is flattened, we need to recover the corresponding index
 	uint index = (x + y * dst_width);
-
-	int ired = (int)(clamp(colour.r, 0, 1) * 255);
-	int igreen = (int)(clamp(colour.g, 0, 1) * 255) << 8;
-	int iblue = (int)(clamp(colour.b, 0, 1) * 255) << 16;
-
+	// The pixels are encoded a an unsigned 32 bit integer
+	// We need to clamp then in [0.0f, 1.0f] before encoding them as 
+	// 8 bits per channel in the order RGBA
+	int ired =   (int)(clamp(colour.r, 0.0f, 1.0f) * 255);
+	int igreen = (int)(clamp(colour.g, 0.0f, 1.0f) * 255) << 8;
+	int iblue =  (int)(clamp(colour.b, 0.0f, 1.0f) * 255) << 16;
+	// Write to destination texture
 	BufferOut[index].colour = ired + igreen + iblue;
 }
 
+// Read a colour from the source texture at pixle coordinates (x,y)
+// in order to work propartlly x must be in [0, src_width) and y in [0, src_height]
+// otherwise a different pixel might be returned
 float3 readPixel(int x, int y) {
 	float3 output;
+	// Since image is flattened, we need to recover the corresponding index
 	uint index = (x + y * src_width);
-
-	output.x = (float)(((Buffer0[index].colour) & 0x000000ff)) / 255.0f;
-	output.y = (float)(((Buffer0[index].colour) & 0x0000ff00) >> 8) / 255.0f;
+	// The pixels are encoded a an unsigned 32 bit integer
+	// with 8 bits per channel in the order RGBA
+	// We need to recover them as float in [0.0f, 1.0f]
+	output.x = (float)(((Buffer0[index].colour) & 0x000000ff)      ) / 255.0f;
+	output.y = (float)(((Buffer0[index].colour) & 0x0000ff00) >>  8) / 255.0f;
 	output.z = (float)(((Buffer0[index].colour) & 0x00ff0000) >> 16) / 255.0f;
 
 	return output;
