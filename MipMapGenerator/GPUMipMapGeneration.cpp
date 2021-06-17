@@ -1,3 +1,4 @@
+#include <exception>
 #include "GPUMipMapGeneration.h"
 
 #ifndef SAFE_RELEASE
@@ -5,13 +6,92 @@
 #endif
 
 GPUMipMapGenerator::GPUMipMapGenerator() {
+    // Enable run-time memory check for debug builds.
+#ifdef _DEBUG
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif 
+    
+    if (FAILED(createComputeDevice(&mDevice, &mContext, false))) {
+        throw std::exception("Failed to create device");
+    }
+    
+    if (FAILED(createComputeShader(mShaderSrcFile, "CSMain", mDevice, &mComputeShader))) {
+        throw std::exception("Failed to create shader object");
+    }
+}
 
+GPUMipMapGenerator::~GPUMipMapGenerator() {
+    SAFE_RELEASE(mComputeShader);
+    SAFE_RELEASE(mContext);
+    SAFE_RELEASE(mDevice);
 }
 
 bool GPUMipMapGenerator::generateMip(const ImageData& src_image, ImageData& dst_image) {
-    return false;
-}
+    // Create buffers in GPU mem
+    createStructuredBuffer(mDevice, sizeof(Pixel), src_image.width * src_image.height, src_image.pixels, &mBufInput);
+    createStructuredBuffer(mDevice, sizeof(Pixel), dst_image.width * dst_image.height, nullptr, &mBufResult);
+    // Ask for debug info from the buffers
+#if defined(_DEBUG) || defined(PROFILE)
+    if (mBufInput) {
+        // names must matche the HLSL code
+        mBufInput->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Buffer0") - 1, "Buffer0");
+    }
+    if (mBufResult) {
+        mBufResult->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Result") - 1, "Result");
+    }
+#endif
+    // Creating buffer views
+    createBufferSRV(mDevice, mBufInput, &mBufInputSRV); // Shader Resource View for input
+    createBufferUAV(mDevice, mBufResult, &mBufResultUAV); // Unordered Access View for output
+    // Prepare constant data for shader
+    ShaderConstantData csConstants;
+    csConstants.src_width = src_image.width;
+    csConstants.src_height = src_image.height;
+    csConstants.dst_width = dst_image.width;
+    csConstants.dst_height = dst_image.height;
+    // If width is even
+    if ((src_image.width % 2) == 0) {
+        // Test the height
+        csConstants.dimension_case = (src_image.height % 2) == 0 ? 0 : 1;
+    } else { // width is odd
+     // Test the height
+        csConstants.dimension_case = (src_image.height % 2) == 0 ? 2 : 3;
+    }
+    if (FAILED(createConstantBuffer(mDevice, sizeof(csConstants), &csConstants, &mConstantBuffer))) {
+        throw std::exception("Unable to create constant buffer");
+    }
+    // Run the compute shader
+    ID3D11ShaderResourceView* aRViews[1] = { mBufInputSRV };
+    runComputeShader(mContext, mComputeShader, 1, aRViews,
+        mConstantBuffer, &csConstants, sizeof(csConstants),
+        mBufResultUAV, dst_image.width, dst_image.height, 1);
+    
+    // Read back the results from GPU
+    {
+        ID3D11Buffer* resultbuf = createAndCopyToDebugBuf(mDevice, mContext, mBufResult);
+        D3D11_MAPPED_SUBRESOURCE MappedResource;
+        Pixel* p;
+        mContext->Map(resultbuf, 0, D3D11_MAP_READ, 0, &MappedResource);
 
+        // Set a break point here and put down the expression "p, [NUM_PIXELS]" in your watch window to see what has been written out by our CS
+        // This is also a common trick to debug CS programs.
+        p = (Pixel*)MappedResource.pData;
+
+        // copy the mem from GPU to CPU
+        {
+            std::memcpy(dst_image.pixels, reinterpret_cast<unsigned char*>(p), dst_image.size);
+        }
+        mContext->Unmap(resultbuf, 0);
+        SAFE_RELEASE(resultbuf);
+    }
+
+    SAFE_RELEASE(mBufInputSRV);
+    SAFE_RELEASE(mBufResultUAV);
+    SAFE_RELEASE(mBufInput);
+    SAFE_RELEASE(mBufResult)
+    
+    return true;
+}
 
 _Use_decl_annotations_
 HRESULT GPUMipMapGenerator::createComputeDevice(ID3D11Device** ppDeviceOut, ID3D11DeviceContext** ppContextOut, bool bForceRef)

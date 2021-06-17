@@ -2,6 +2,7 @@
 #include <cstring>
 #include <iostream>
 #include <vector>
+#include <algorithm>
 
 #include <string>
 
@@ -9,6 +10,7 @@
 #include <stb_image_resize.h>
 
 #include "ImageData.h"
+#include "GPUMipMapGeneration.h"
 
 
 int calculate_max_mipmap_level(const int& width, const int& height);
@@ -48,9 +50,10 @@ int main(int argc, char* argv[]) {
     std::cout << "Writing file: " << copy_name << (mip_maps[0].save(copy_name) ? " sucessful!" : " failed!") << std::endl;
 
     /* Calculate the mipmaps for the next levels */
+    GPUMipMapGenerator gpuGen;
     for (int i = 1; i < levels_to_generate; ++i) {
         // Calculate filename of this level
-        const std::string next_level_image_name{ "CPU/" + std::to_string(i) + "_level_texture.jpg" };
+        const std::string next_level_image_name{ "GPU/" + std::to_string(i) + "_level_texture.jpg" };
         
         // Prepare the struct for the new resized image. I. e. calculate the info of the next level
         mip_maps[i].width  = mip_maps[i - 1].width  > 1 ? mip_maps[i - 1].width  / 2 : 1;
@@ -64,7 +67,8 @@ int main(int argc, char* argv[]) {
         mip_maps[i].pixels = new unsigned char[mip_maps[i].size];
 
         // Resize the image
-        resize_cpu(mip_maps[i - 1], mip_maps[i]);
+        //resize_cpu(mip_maps[i - 1], mip_maps[i]);
+        gpuGen.generateMip(mip_maps[i - 1], mip_maps[i]);
         
         // Write the new image to disk
         std::cout << mip_maps[i].print() << std::endl;
@@ -76,8 +80,9 @@ int main(int argc, char* argv[]) {
 
 int calculate_max_mipmap_level(const int& width, const int& height) {
     int levels{0};
+    using std::max;
     if (width > 0 && height > 0) {
-        levels = static_cast<int>(std::floor(std::log2(std::max(width, height)))) + 1;
+        levels = static_cast<int>(std::floor(std::log2(max(width, height)))) + 1;
     } else {
         throw std::runtime_error("Invalid dimension to calculate mipmap levels!");
     }

@@ -46,6 +46,8 @@ private:
 	// View to map the resources
 	ID3D11ShaderResourceView* mBufInputSRV{ nullptr };
 	ID3D11UnorderedAccessView* mBufResultUAV{ nullptr };
+    // Compute shader source code file location
+    const wchar_t* mShaderSrcFile = L"GenerateMip.hlsl";
     // Helper private methods
     HRESULT createComputeDevice(_Outptr_ ID3D11Device** ppDeviceOut, _Outptr_ ID3D11DeviceContext** ppContextOut, _In_ bool bForceRef);
     HRESULT createComputeShader(_In_z_ LPCWSTR pSrcFile, _In_z_ LPCSTR pFunctionName,
@@ -72,4 +74,5 @@ private:
 public:
 	GPUMipMapGenerator();
 	bool generateMip(const ImageData& src_image, ImageData& dst_image);
+    ~GPUMipMapGenerator();
 };
