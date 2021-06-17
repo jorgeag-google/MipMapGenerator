@@ -44,3 +44,5 @@ Debug/
 MipMapGenerator/Debug/
 MipMapGenerator/x64/
 x64/
+MipMapGenerator/GPU/
+MipMapGenerator/CPU/
