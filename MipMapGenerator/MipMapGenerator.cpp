@@ -50,7 +50,7 @@ int main(int argc, char* argv[]) {
     const bool use_gpu = true;
     for (int i = 1; i < levels_to_generate; ++i) {
         // Calculate filename of this level
-        const std::string next_level_image_name{ (use_gpu ? "GPU/" : "CPU/") + std::to_string(i) + "_level_countryside.jpg"};
+        const std::string next_level_image_name{ (use_gpu ? "GPU/" : "CPU/") + std::string("countryside_level_") + std::to_string(i) + ".jpg"};
         
         // Prepare the struct for the new resized image. I. e. calculate the info of the next level
         mip_maps[i].width  = mip_maps[i - 1].width  > 1 ? mip_maps[i - 1].width  / 2 : 1;
