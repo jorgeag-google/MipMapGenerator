@@ -19,7 +19,7 @@ bool resize_cpu(const ImageData& src_image, ImageData& dst_image);
 
 int main(int argc, char* argv[]) {
     // Path of the input  image file
-    const std::string image_file{"textures/texture.jpg"};
+    const std::string image_file{"textures/countryside.jpg"};
     std::cout << "Reading file: " << image_file << std::endl;
     // Load input image form disk
     ImageData input{image_file};
@@ -44,16 +44,13 @@ int main(int argc, char* argv[]) {
     mip_maps[0].size = input.size;
     mip_maps[0].pixels = new unsigned char[mip_maps[0].size];
     std::memcpy(mip_maps[0].pixels, input.pixels, mip_maps[0].size); 
-    // Write the input (level 0) image to disk
-    const std::string copy_name{"CPU/0_level_texture.jpg"};
-    std::cout << mip_maps[0].print() << std::endl;
-    std::cout << "Writing file: " << copy_name << (mip_maps[0].save(copy_name) ? " sucessful!" : " failed!") << std::endl;
-
+    
     /* Calculate the mipmaps for the next levels */
     GPUMipMapGenerator gpuGen;
+    const bool use_gpu = true;
     for (int i = 1; i < levels_to_generate; ++i) {
         // Calculate filename of this level
-        const std::string next_level_image_name{ "GPU/" + std::to_string(i) + "_level_texture.jpg" };
+        const std::string next_level_image_name{ (use_gpu ? "GPU/" : "CPU/") + std::to_string(i) + "_level_countryside.jpg"};
         
         // Prepare the struct for the new resized image. I. e. calculate the info of the next level
         mip_maps[i].width  = mip_maps[i - 1].width  > 1 ? mip_maps[i - 1].width  / 2 : 1;
@@ -67,9 +64,11 @@ int main(int argc, char* argv[]) {
         mip_maps[i].pixels = new unsigned char[mip_maps[i].size];
 
         // Resize the image
-        //resize_cpu(mip_maps[i - 1], mip_maps[i]);
-        gpuGen.generateMip(mip_maps[i - 1], mip_maps[i]);
-        
+        if (use_gpu) {
+            gpuGen.generateMip(mip_maps[i - 1], mip_maps[i]);
+        } else {
+            resize_cpu(mip_maps[i - 1], mip_maps[i]);
+        }
         // Write the new image to disk
         std::cout << mip_maps[i].print() << std::endl;
         std::cout << "Writing file: " << next_level_image_name << (mip_maps[i].save(next_level_image_name) ? " sucessful!" : " failed!") << std::endl;
