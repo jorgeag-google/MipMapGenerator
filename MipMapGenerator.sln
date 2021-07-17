@@ -7,6 +7,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MipMapGenerator", "MipMapGe
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ComputeShaderSample", "ComputeShaderSample\ComputeShaderSample.vcxproj", "{649C5EA0-B535-4F02-99B4-419DD60CD116}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MipMapGenerationTextures", "MipMapGenerationTextures\MipMapGenerationTextures.vcxproj", "{1C295A1F-276B-4C26-A41E-C15ACEABCBF5}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ComputeShaderTextureSample", "ComputeShaderTextureSample\ComputeShaderTextureSample.vcxproj", "{3749BA42-8AE0-4B32-A714-9803E1EC49E9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -31,6 +35,22 @@ Global
 		{649C5EA0-B535-4F02-99B4-419DD60CD116}.Release|x64.Build.0 = Release|x64
 		{649C5EA0-B535-4F02-99B4-419DD60CD116}.Release|x86.ActiveCfg = Release|Win32
 		{649C5EA0-B535-4F02-99B4-419DD60CD116}.Release|x86.Build.0 = Release|Win32
+		{1C295A1F-276B-4C26-A41E-C15ACEABCBF5}.Debug|x64.ActiveCfg = Debug|x64
+		{1C295A1F-276B-4C26-A41E-C15ACEABCBF5}.Debug|x64.Build.0 = Debug|x64
+		{1C295A1F-276B-4C26-A41E-C15ACEABCBF5}.Debug|x86.ActiveCfg = Debug|Win32
+		{1C295A1F-276B-4C26-A41E-C15ACEABCBF5}.Debug|x86.Build.0 = Debug|Win32
+		{1C295A1F-276B-4C26-A41E-C15ACEABCBF5}.Release|x64.ActiveCfg = Release|x64
+		{1C295A1F-276B-4C26-A41E-C15ACEABCBF5}.Release|x64.Build.0 = Release|x64
+		{1C295A1F-276B-4C26-A41E-C15ACEABCBF5}.Release|x86.ActiveCfg = Release|Win32
+		{1C295A1F-276B-4C26-A41E-C15ACEABCBF5}.Release|x86.Build.0 = Release|Win32
+		{3749BA42-8AE0-4B32-A714-9803E1EC49E9}.Debug|x64.ActiveCfg = Debug|x64
+		{3749BA42-8AE0-4B32-A714-9803E1EC49E9}.Debug|x64.Build.0 = Debug|x64
+		{3749BA42-8AE0-4B32-A714-9803E1EC49E9}.Debug|x86.ActiveCfg = Debug|Win32
+		{3749BA42-8AE0-4B32-A714-9803E1EC49E9}.Debug|x86.Build.0 = Debug|Win32
+		{3749BA42-8AE0-4B32-A714-9803E1EC49E9}.Release|x64.ActiveCfg = Release|x64
+		{3749BA42-8AE0-4B32-A714-9803E1EC49E9}.Release|x64.Build.0 = Release|x64
+		{3749BA42-8AE0-4B32-A714-9803E1EC49E9}.Release|x86.ActiveCfg = Release|Win32
+		{3749BA42-8AE0-4B32-A714-9803E1EC49E9}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

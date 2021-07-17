@@ -39,10 +39,15 @@ Thumbs.db
 # Project specific folders #
 ############################
 .vs/
-ComputeShaderSample/x64/
 Debug/
+x64/
+ComputeShaderSample/x64/
+ComputeShaderTextureSample/x64/
 MipMapGenerator/Debug/
 MipMapGenerator/x64/
-x64/
 MipMapGenerator/GPU/
 MipMapGenerator/CPU/
+MipMapGenerationTextures/Debug/
+MipMapGenerationTextures/x64/
+MipMapGenerationTextures/GPU/
+MipMapGenerationTextures/CPU/

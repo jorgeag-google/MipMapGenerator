@@ -22,10 +22,12 @@ GPUMipMapGenerator::GPUMipMapGenerator() {
 
 GPUMipMapGenerator::~GPUMipMapGenerator() {
     // In case of abnormal termination
-    SAFE_RELEASE(mBufInputSRV);
-    SAFE_RELEASE(mBufResultUAV);
-    SAFE_RELEASE(mBufInput);
-    SAFE_RELEASE(mBufResult);
+    SAFE_RELEASE(mTextInputSRV);
+    SAFE_RELEASE(mTextResultUAV);
+    SAFE_RELEASE(mTextInput);
+    SAFE_RELEASE(mTextResult);
+    //SAFE_RELEASE(mBufInput);
+    //SAFE_RELEASE(mBufResult);
     // Normal cleaning
     SAFE_RELEASE(mComputeShader);
     SAFE_RELEASE(mContext);
@@ -33,28 +35,50 @@ GPUMipMapGenerator::~GPUMipMapGenerator() {
 }
 
 bool GPUMipMapGenerator::generateMip(const ImageData& src_image, ImageData& dst_image) {
-    // Create buffers in GPU mem
-    createStructuredBuffer(mDevice, sizeof(Pixel), src_image.width * src_image.height, src_image.pixels, &mBufInput);
-    createStructuredBuffer(mDevice, sizeof(Pixel), dst_image.width * dst_image.height, nullptr, &mBufResult);
+    // Create textures in GPU mem
+    if (FAILED(createSrcTexture(mDevice, src_image, &mTextInput))) {
+        throw std::exception("Unable to create src image texture");
+    }
+    if (FAILED(createDstTexture(mDevice, dst_image, &mTextResult))) {
+        throw std::exception("Unable to create dst image texture");
+    }
+
     // Ask for debug info from the buffers
 #if defined(_DEBUG) || defined(PROFILE)
+ /* 
     if (mBufInput) {
-        // names must matche the HLSL code
+        // names must match the HLSL code
         mBufInput->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Buffer0") - 1, "Buffer0");
     }
     if (mBufResult) {
         mBufResult->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Result") - 1, "Result");
     }
+ */
+    if (mTextInput) {
+        mTextInput->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("srcTex") - 1, "srcTex");
+    }
+    if (mTextResult) {
+        mTextResult->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("dstTex") - 1, "dstTex");
+    }
 #endif
-    // Creating buffer views
-    createBufferSRV(mDevice, mBufInput, &mBufInputSRV); // Shader Resource View for input
-    createBufferUAV(mDevice, mBufResult, &mBufResultUAV); // Unordered Access View for output
+    // Creating texture views
+    if (FAILED(createTextureSRV(mDevice, mTextInput, &mTextInputSRV))) {
+        throw std::exception("Unable to create SRV for src image");
+    }
+    if (FAILED(createTextureUAV(mDevice, mTextResult, &mTextResultUAV))) {
+        throw std::exception("Unable to create UAV for dst image");
+    }
+    //createBufferSRV(mDevice, mBufInput, &mBufInputSRV); // Shader Resource View for input
+    //createBufferUAV(mDevice, mBufResult, &mBufResultUAV); // Unordered Access View for output
     // Prepare constant data for shader
     ShaderConstantData csConstants;
     csConstants.src_width = src_image.width;
     csConstants.src_height = src_image.height;
     csConstants.dst_width = dst_image.width;
     csConstants.dst_height = dst_image.height;
+    csConstants.texel_size[0] = 1.0f / src_image.width;
+    csConstants.texel_size[1] = 1.0f / src_image.height;
+    csConstants.src_mip_level = 0;
     // If width is even
     if ((src_image.width % 2) == 0) {
         // Test the height
@@ -67,13 +91,13 @@ bool GPUMipMapGenerator::generateMip(const ImageData& src_image, ImageData& dst_
         throw std::exception("Unable to create constant buffer");
     }
     // Run the compute shader
-    ID3D11ShaderResourceView* aRViews[1] = { mBufInputSRV };
+    ID3D11ShaderResourceView* aRViews[1] = { mTextInputSRV };
     runComputeShader(mContext, mComputeShader, 1, aRViews,
         mConstantBuffer, &csConstants, sizeof(csConstants),
-        mBufResultUAV, dst_image.width, dst_image.height, 1);
+        mTextResultUAV, dst_image.width, dst_image.height, 1);
     
     // Read back the results from GPU
-    {
+    /* {
         ID3D11Buffer* resultbuf = createAndCopyToDebugBuf(mDevice, mContext, mBufResult);
         D3D11_MAPPED_SUBRESOURCE MappedResource;
         Pixel* p;
@@ -89,13 +113,16 @@ bool GPUMipMapGenerator::generateMip(const ImageData& src_image, ImageData& dst_
         }
         mContext->Unmap(resultbuf, 0);
         SAFE_RELEASE(resultbuf);
-    }
+    }*/
 
-    SAFE_RELEASE(mBufInputSRV);
-    SAFE_RELEASE(mBufResultUAV);
-    SAFE_RELEASE(mBufInput);
-    SAFE_RELEASE(mBufResult);
-    
+    SAFE_RELEASE(mTextInputSRV);
+    SAFE_RELEASE(mTextResultUAV);
+    //SAFE_RELEASE(mBufResultUAV);
+    //SAFE_RELEASE(mBufInput);
+    //SAFE_RELEASE(mBufResult);
+    SAFE_RELEASE(mTextInput);
+    SAFE_RELEASE(mTextResult);
+
     return true;
 }
 
@@ -314,6 +341,62 @@ HRESULT GPUMipMapGenerator::createStructuredBuffer(ID3D11Device* pDevice, UINT u
 }
 
 _Use_decl_annotations_
+HRESULT GPUMipMapGenerator::createSrcTexture(_In_ ID3D11Device* pDevice, _In_ const ImageData& image, _Outptr_ ID3D11Texture2D** pTextureOut) {
+    D3D11_TEXTURE2D_DESC desc;
+    desc.Width = image.width;
+    desc.Height = image.height;
+    desc.MipLevels = desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.SampleDesc.Quality = 0;
+    desc.Usage = D3D11_USAGE_DYNAMIC;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    desc.MiscFlags = 0;
+         
+    if (image.pixels != nullptr) {
+        // Fill in the subresource data.
+        D3D11_SUBRESOURCE_DATA initData;
+        initData.pSysMem = image.pixels;
+        initData.SysMemPitch = static_cast<UINT>(4 * image.width);
+        initData.SysMemSlicePitch = static_cast<UINT>(0);
+        return pDevice->CreateTexture2D(&desc, &initData, pTextureOut);
+    }
+    else {
+        return pDevice->CreateTexture2D(&desc, nullptr, pTextureOut);
+    }
+
+}
+
+_Use_decl_annotations_
+HRESULT GPUMipMapGenerator::createDstTexture(_In_ ID3D11Device* pDevice, _In_ const ImageData& image, _Outptr_ ID3D11Texture2D** pTextureOut) {
+    D3D11_TEXTURE2D_DESC desc;
+    desc.Width = image.width;
+    desc.Height = image.height;
+    desc.MipLevels = desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.SampleDesc.Quality = 0;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    desc.MiscFlags = 0;
+
+    if (image.pixels != nullptr) {
+        // Fill in the subresource data.
+        D3D11_SUBRESOURCE_DATA initData;
+        initData.pSysMem = image.pixels;
+        initData.SysMemPitch = static_cast<UINT>(4 * image.width);
+        initData.SysMemSlicePitch = static_cast<UINT>(0);
+        return pDevice->CreateTexture2D(&desc, &initData, pTextureOut);
+    }
+    else {
+        return pDevice->CreateTexture2D(&desc, nullptr, pTextureOut);
+    }
+
+}
+
+_Use_decl_annotations_
 HRESULT GPUMipMapGenerator::createConstantBuffer(ID3D11Device* pDevice, UINT uElementSize, void* pInitData, ID3D11Buffer** ppBufOut)
 {
     // Fill in the buffer description.
@@ -336,6 +419,77 @@ HRESULT GPUMipMapGenerator::createConstantBuffer(ID3D11Device* pDevice, UINT uEl
     else {
         return pDevice->CreateBuffer(&cbDesc, nullptr, ppBufOut);
     }
+}
+
+_Use_decl_annotations_
+HRESULT GPUMipMapGenerator::createTextureSRV(_In_ ID3D11Device* pDevice, _In_ ID3D11Texture2D* pTexture, _Outptr_ ID3D11ShaderResourceView** ppSRVOut) {
+    D3D11_TEXTURE2D_DESC descText = {};
+    pTexture->GetDesc(&descText);
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC desc = {};
+    desc.Format = descText.Format;
+    desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    desc.Texture2D.MostDetailedMip = 0;    
+    desc.Texture2D.MipLevels = -1;
+
+    /*
+    if (descText.MiscFlags & D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS)
+    {
+        // This is a Raw Buffer
+
+        desc.Format = DXGI_FORMAT_R32_TYPELESS;
+        desc.BufferEx.Flags = D3D11_BUFFEREX_SRV_FLAG_RAW;
+        desc.BufferEx.NumElements = descBuf.ByteWidth / 4;
+    }
+    else
+        if (descText.MiscFlags & D3D11_RESOURCE_MISC_BUFFER_STRUCTURED)
+        {
+            // This is a Structured Buffer
+
+            desc.Format = DXGI_FORMAT_UNKNOWN;
+            desc.BufferEx.NumElements = descText.ByteWidth / descText.StructureByteStride;
+        }
+        else
+        {
+            return E_INVALIDARG;
+        }
+    */
+
+    return pDevice->CreateShaderResourceView(pTexture, &desc, ppSRVOut);
+}
+
+_Use_decl_annotations_
+HRESULT GPUMipMapGenerator::createTextureUAV(_In_ ID3D11Device* pDevice, _In_ ID3D11Texture2D* pTexture, _Outptr_ ID3D11UnorderedAccessView** pUAVOut) {
+    D3D11_TEXTURE2D_DESC descText = {};
+    pTexture->GetDesc(&descText);
+
+    D3D11_UNORDERED_ACCESS_VIEW_DESC desc = {};
+    desc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+    desc.Format = descText.Format;
+    desc.Texture2D.MipSlice = 0;
+    /*
+    if (descBuf.MiscFlags & D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS)
+    {
+        // This is a Raw Buffer
+
+        desc.Format = DXGI_FORMAT_R32_TYPELESS; // Format must be DXGI_FORMAT_R32_TYPELESS, when creating Raw Unordered Access View
+        desc.Buffer.Flags = D3D11_BUFFER_UAV_FLAG_RAW;
+        desc.Buffer.NumElements = descBuf.ByteWidth / 4;
+    }
+    else
+        if (descBuf.MiscFlags & D3D11_RESOURCE_MISC_BUFFER_STRUCTURED)
+        {
+            // This is a Structured Buffer
+
+            desc.Format = DXGI_FORMAT_UNKNOWN;      // Format must be must be DXGI_FORMAT_UNKNOWN, when creating a View of a Structured Buffer
+            desc.Buffer.NumElements = descBuf.ByteWidth / descBuf.StructureByteStride;
+        }
+        else
+        {
+            return E_INVALIDARG;
+        }
+    */
+    return pDevice->CreateUnorderedAccessView(pTexture, &desc, pUAVOut);
 }
 
 _Use_decl_annotations_
