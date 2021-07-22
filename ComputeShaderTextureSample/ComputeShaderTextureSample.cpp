@@ -17,6 +17,8 @@
 #include <d3dcommon.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
+#include <DirectXTex.h>
+
 
 #include "ImageData.h"
 
@@ -59,6 +61,7 @@ ID3D11Buffer* g_pConstantBuffer = nullptr;
 // Textures for the input and output images
 ID3D11Texture2D* g_pTextInput = nullptr;
 ID3D11Texture2D* g_pTextResult =  nullptr;
+ID3D11SamplerState* g_pSamplerLinear = nullptr;
 // View to map the resources
 ID3D11ShaderResourceView* g_pTextInputSRV = nullptr;
 ID3D11UnorderedAccessView* g_pTextResultUAV = nullptr;
@@ -73,20 +76,19 @@ struct Pixel {
 // i. e. sizeof(ShaderConstantData) % 16 == 0
 struct alignas(16) ShaderConstantData
 {
-    // width and height of the source texture
+    // Dimensions in pixels of the source texture
     int src_width;
     int src_height;
-    // width and height of the destination texture. 
-    // we will calculate them by halving the source texture ones.
+    // Dimensions in pixels of the destination texture
     int dst_width;
     int dst_height;
-    // Filter dimensions depends on the dimensions of the src texture
-    // 0 - both are even
-    // 1 - width is even and height is odd
-    // 2 - width is odd and height is even
-    // 3 - both are odd
+    float texel_size[2];	// 1.0 / srcTex.Dimensions
+    int src_mip_level;
+    // Case to filter according the parity of the dimensions in the src texture. 
+    // Must be one of 0, 1, 2 or 3
+    // See CSMain function bellow
     int dimension_case;
-    // TODO: will choose which filter use to interpolate. By default is bi-linear
+    // Ignored for now, if we want to use a different filter strategy. Current one is bi-linear filter
     int filter_option;
 };
 
@@ -106,8 +108,8 @@ int __cdecl main()
     }
     printf("done\n");
 
-    const wchar_t* shader_file = L"GenerateMip.hlsl";
-    //const wchar_t* shader_file = L"Desaturate.hlsl";
+    //const wchar_t* shader_file = L"GenerateMip.hlsl";
+    const wchar_t* shader_file = L"Desaturate.hlsl";
     printf("Creating Compute Shader from file: %S... ", shader_file);
     if (FAILED(CreateComputeShader(shader_file, "CSMain", g_pDevice, &g_pCS))) {
         throw std::exception("Failed to create compute shader");
@@ -121,11 +123,11 @@ int __cdecl main()
 
     printf("Creating dst image placeholder... ");
     ImageData output_image;
-    output_image.width = input_image.width / 2;
-    output_image.height = input_image.height / 2;
+    output_image.width = input_image.width;
+    output_image.height = input_image.height;
     output_image.original_channels = input_image.original_channels;
     output_image.desired_channels = input_image.desired_channels;
-    output_image.level = input_image.level + 1;
+    output_image.level = input_image.level;
     output_image.size = output_image.width * output_image.height * output_image.desired_channels;
     printf("%s\n", output_image.print().c_str());
 
@@ -168,8 +170,12 @@ int __cdecl main()
 #endif
     printf("done\n");
 
-    printf("Prepairing data for shader...");
+    printf("Prepairing constant buffer...");
     ShaderConstantData csConstants;
+    csConstants.src_mip_level = 0;
+    csConstants.filter_option = 0;
+    csConstants.texel_size[0] = 1.0f / input_image.width;
+    csConstants.texel_size[1] = 1.0f / input_image.height;
     csConstants.src_width = input_image.width;
     csConstants.src_height = input_image.height;
     csConstants.dst_width = output_image.width;
@@ -178,11 +184,11 @@ int __cdecl main()
     if ((input_image.width % 2) == 0) {
         // Test the height
         csConstants.dimension_case = (input_image.height % 2) == 0 ? 0 : 1;
-    }
-    else { // width is odd
+    } else { // width is odd
      // Test the height
         csConstants.dimension_case = (input_image.height % 2) == 0 ? 2 : 3;
     }
+
     if (FAILED(CreateConstantBuffer(g_pDevice, sizeof(csConstants), &csConstants, &g_pConstantBuffer))) {
         printf("Unable to create constant buffer...\n");
     }
@@ -190,36 +196,51 @@ int __cdecl main()
 
     printf("Running Compute Shader...");
     
+    {
+        /* Since original RunCompute function does not support to pass a sampler state */
+        // Description of the sampler
+        D3D11_SAMPLER_DESC sampDesc = {};
+        sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+        sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+        sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+        sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+        sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+        sampDesc.MinLOD = 0;
+        sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+        // Create the sample state
+        if (FAILED(g_pDevice->CreateSamplerState(&sampDesc, &g_pSamplerLinear))) {
+            throw std::exception("Failed to create sampler state");
+        }
+        ID3D11SamplerState* aSamplers[1] = { g_pSamplerLinear };
+        // Set in CS shader
+        g_pContext->CSSetSamplers(0, 1, aSamplers);
+        /* Adding the sampler state ends*/
+    }
+
     ID3D11ShaderResourceView* aRViews[1] = { g_pTextInputSRV };
-    
     RunComputeShader(g_pContext, g_pCS, 1, aRViews,
         g_pConstantBuffer, &csConstants, sizeof(csConstants),
         g_pTextResultUAV, output_image.width, output_image.height, 1);
     printf("done\n");
 
     // Read back the result from GPU, and saving as an image into disk
-    /*{
-        ID3D11Buffer* resultbuf = CreateAndCopyToDebugBuf(g_pDevice, g_pContext, g_pBufResult);
-        D3D11_MAPPED_SUBRESOURCE MappedResource;
-        Pixel* p;
-        g_pContext->Map(resultbuf, 0, D3D11_MAP_READ, 0, &MappedResource);
-
-        // Set a break point here and put down the expression "p, [NUM_PIXELS]" in your watch window to see what has been written out by our CS
-        // This is also a common trick to debug CS programs.
-        p = (Pixel*)MappedResource.pData;
-
-        // Write the image to disk to see if the results were correct
-        printf("Write results to disk...\n");
-        {
-            const char* out_file_name = "textures/output.jpg";
-            output_image.pixels = reinterpret_cast<unsigned char*>(p); // Borrow the data from p for a momment
-            printf("Saving %s : %s\n", out_file_name, output_image.save(std::string(out_file_name)) ? "success" : "fail");
-            output_image.pixels = nullptr; // Since we do not own this data, we cannot free it. We just borrowed from p to writing it
+    {
+        printf("Cleaning up...\n");
+        DirectX::ScratchImage image;
+        if (FAILED(DirectX::CaptureTexture(g_pDevice, g_pContext, g_pTextResult, image))) {
+            throw std::exception("Fail to adquire the result texture");
         }
-        g_pContext->Unmap(resultbuf, 0);
-
-        SAFE_RELEASE(resultbuf);
-    }*/
+        if (FAILED(DirectX::SaveToDDSFile(image.GetImages(), image.GetImageCount(), image.GetMetadata(), DirectX::DDS_FLAGS_NONE, L"result.dds"))) {
+            throw std::exception("Fail to save the dst texture as dds");
+        }
+        // Since the DX11 resource could contains several planes or mipmap levels, we extract the first image's mipmap 0
+        const DirectX::Image* img = image.GetImage(0, 0, 0);
+        assert(img);
+        if (FAILED(DirectX::SaveToWICFile(*img, DirectX::WIC_FLAGS_NONE, DirectX::GetWICCodec(DirectX::WIC_CODEC_JPEG), L"result.jpg"))) {
+            throw std::exception("Fail to save the dst texture as jpg");
+        }
+        printf("Done\n");
+    }
 
     printf("Cleaning up...\n");
     SAFE_RELEASE(g_pTextInput);

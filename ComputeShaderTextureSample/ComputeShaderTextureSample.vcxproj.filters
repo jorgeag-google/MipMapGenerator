@@ -34,5 +34,8 @@
     <FxCompile Include="GenerateMip.hlsl">
       <Filter>Resource Files\shaders</Filter>
     </FxCompile>
+    <FxCompile Include="Desaturate.hlsl">
+      <Filter>Resource Files\shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>
