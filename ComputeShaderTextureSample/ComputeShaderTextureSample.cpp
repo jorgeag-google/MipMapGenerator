@@ -230,12 +230,17 @@ int __cdecl main()
         if (FAILED(DirectX::CaptureTexture(g_pDevice, g_pContext, g_pTextResult, image))) {
             throw std::exception("Fail to adquire the result texture");
         }
+        /*
         if (FAILED(DirectX::SaveToDDSFile(image.GetImages(), image.GetImageCount(), image.GetMetadata(), DirectX::DDS_FLAGS_NONE, L"result.dds"))) {
             throw std::exception("Fail to save the dst texture as dds");
-        }
+        } 
+        */
         // Since the DX11 resource could contains several planes or mipmap levels, we extract the first image's mipmap 0
         const DirectX::Image* img = image.GetImage(0, 0, 0);
         assert(img);
+        if (FAILED(CoInitialize(NULL))) {
+            throw std::exception("Fail to init the WIC image factory, needed to save wic codecs");
+        }
         if (FAILED(DirectX::SaveToWICFile(*img, DirectX::WIC_FLAGS_NONE, DirectX::GetWICCodec(DirectX::WIC_CODEC_JPEG), L"result.jpg"))) {
             throw std::exception("Fail to save the dst texture as jpg");
         }
