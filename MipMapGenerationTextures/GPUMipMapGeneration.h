@@ -38,6 +38,7 @@ private:
 	ID3D11UnorderedAccessView* mTextResultUAV{ nullptr };
     // Compute shader source code file location
     const wchar_t* mShaderSrcFile = L"GenerateMip.hlsl";
+	std::wstring mTmpImageStoreFile{ L"result.jpg" };
     // Helper private methods
     HRESULT createComputeDevice(_Outptr_ ID3D11Device** ppDeviceOut, _Outptr_ ID3D11DeviceContext** ppContextOut, _In_ bool bForceRef);
     HRESULT createComputeShader(_In_z_ LPCWSTR pSrcFile, _In_z_ LPCSTR pFunctionName,
@@ -63,10 +64,11 @@ private:
 		_In_opt_ ID3D11Buffer* pCBCS, _In_reads_opt_(dwNumDataBytes) void* pCSData, _In_ DWORD dwNumDataBytes,
 		_In_ ID3D11UnorderedAccessView* pUnorderedAccessView,
 		_In_ UINT X, _In_ UINT Y, _In_ UINT Z);
+	HRESULT saveResult(const wchar_t* resultImageFile);
 
 public:
 	GPUMipMapGenerator();
 	bool generateMip(const ImageData& src_image, ImageData& dst_image);
-	HRESULT saveResult(const wchar_t* resultImageFile);
+	
     ~GPUMipMapGenerator();
 };

@@ -2,6 +2,8 @@
 #include "GPUMipMapGeneration.h"
 #include <DirectXTex.h>
 
+#include <stb_image.h>
+
 #ifndef SAFE_RELEASE
 #define SAFE_RELEASE(p)      { if (p) { (p)->Release(); (p)=nullptr; } }
 #endif
@@ -40,6 +42,7 @@ GPUMipMapGenerator::~GPUMipMapGenerator() {
 }
 
 bool GPUMipMapGenerator::generateMip(const ImageData& src_image, ImageData& dst_image) {
+
     // Create textures in GPU mem
     if (FAILED(createSrcTexture(mDevice, src_image, &mTextInput))) {
         throw std::exception("Unable to create src image texture");
@@ -91,15 +94,37 @@ bool GPUMipMapGenerator::generateMip(const ImageData& src_image, ImageData& dst_
         mConstantBuffer, &csConstants, sizeof(csConstants),
         mTextResultUAV, dst_image.width, dst_image.height, 1);
     
-    // Read back the results from GPU and save it to an image
-    saveResult();
+    //Save the resulting image into disk
+    if (FAILED(saveResult(mTmpImageStoreFile.c_str()))) {
+        throw std::exception("Unable to save result tmp image into disk");
+    }
+
+    {
+        int width;
+        int height;
+        int chanels;
+        // Since we have a wstring and stbi requieres a standar string
+        std::string fileNameString{ mTmpImageStoreFile.begin(), mTmpImageStoreFile.end() };
+        unsigned char* pixels = nullptr;
+        pixels = stbi_load(fileNameString.c_str(), &width, &height, &chanels, dst_image.desired_channels);
+        if (!pixels) {
+            throw std::exception("Unable to load pixels back from disk");
+        }
+        if (width != dst_image.width || height != dst_image.height) {
+            throw std::exception("image file corrupted");
+        }
+        std::memcpy(dst_image.pixels, pixels, dst_image.size);
+        if (pixels != nullptr) {
+            stbi_image_free(pixels);
+        }
+    }
 
     SAFE_RELEASE(mSamplerLinear);
     SAFE_RELEASE(mConstantBuffer);
     SAFE_RELEASE(mTextInputSRV);
     SAFE_RELEASE(mTextResultUAV);
-    SAFE_RELEASE(mTextInput);
     SAFE_RELEASE(mTextResult);
+    SAFE_RELEASE(mTextInput);
 
     return true;
 }

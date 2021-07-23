@@ -51,7 +51,6 @@ int main(int argc, char* argv[]) {
     for (unsigned int i = 1; i < static_cast<unsigned int>(levels_to_generate); ++i) {
         // Calculate filename of this level
         const std::string next_level_image_name{ (use_gpu ? "GPU/" : "CPU/") + std::string("countryside_level_") + std::to_string(i) + ".jpg" };
-
         // Prepare the struct for the new resized image. I. e. calculate the info of the next level
         mip_maps[i].width = mip_maps[i - 1u].width > 1 ? mip_maps[i - 1u].width / 2 : 1;
         mip_maps[i].height = mip_maps[i - 1u].height > 1 ? mip_maps[i - 1u].height / 2 : 1;
@@ -66,17 +65,13 @@ int main(int argc, char* argv[]) {
         // Resize the image
         if (use_gpu) {
             gpuGen.generateMip(mip_maps[i - 1u], mip_maps[i]);
-            // Write the new image to disk
-            std::cout << mip_maps[i].print() << std::endl;
-            std::wstring fileName(next_level_image_name.c_str());
-            std::cout << "Writing file: " << next_level_image_name << (gpuGen.saveResult(next_level_image_name) ? " sucessful!" : " failed!") << std::endl;
         }
         else {
             resize_cpu(mip_maps[i - 1u], mip_maps[i]);
-            // Write the new image to disk
-            std::cout << mip_maps[i].print() << std::endl;
-            std::cout << "Writing file: " << next_level_image_name << (mip_maps[i].save(next_level_image_name) ? " sucessful!" : " failed!") << std::endl;
         }
+        // Write the new image to disk
+        std::cout << mip_maps[i].print() << std::endl;
+        std::cout << "Writing file: " << next_level_image_name << (mip_maps[i].save(next_level_image_name) ? " sucessful!" : " failed!") << std::endl;
         
     }
 

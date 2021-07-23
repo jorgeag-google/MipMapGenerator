@@ -1,10 +1,5 @@
 cbuffer ShaderConstantData : register(b0) {
-	// Dimensions in pixels of the source texture
-	int src_width;
-	int src_height; 
-	// Dimensions in pixels of the destination texture
-	int dst_width;
-	int dst_height;
+
 	float2 texel_size;	// 1.0 / srcTex.Dimensions
 	int src_mip_level;
 	// Case to filter according the parity of the dimensions in the src texture. 
