@@ -12,12 +12,6 @@
 // i. e. sizeof(ShaderConstantData) % 16 == 0
 struct alignas(16) ShaderConstantData
 {
-	// Dimensions in pixels of the source texture
-	int src_width;
-	int src_height;
-	// Dimensions in pixels of the destination texture
-	int dst_width;
-	int dst_height;
 	float texel_size[2];	// 1.0 / srcTex.Dimensions
 	int src_mip_level;
 	// Case to filter according the parity of the dimensions in the src texture. 
@@ -35,10 +29,9 @@ private:
 	ID3D11DeviceContext* mContext{ nullptr };
 	ID3D11ComputeShader* mComputeShader{ nullptr };
 	//Input/output data related
-	//ID3D11Buffer* mBufInput{ nullptr };
-	//ID3D11Buffer* mBufResult{ nullptr };
     ID3D11Texture2D* mTextInput{ nullptr };
 	ID3D11Texture2D* mTextResult{ nullptr };
+    ID3D11SamplerState* mSamplerLinear{ nullptr };
 	ID3D11Buffer* mConstantBuffer{ nullptr };
 	// View to map the resources
 	ID3D11ShaderResourceView* mTextInputSRV{ nullptr };
@@ -62,18 +55,18 @@ private:
     HRESULT createConstantBuffer(_In_ ID3D11Device* pDevice, _In_ UINT uElementSize,
         _In_ void* pInitData,
         _Outptr_ ID3D11Buffer** ppBufOut);
-    HRESULT createBufferSRV(_In_ ID3D11Device* pDevice, _In_ ID3D11Buffer* pBuffer, _Outptr_ ID3D11ShaderResourceView** ppSRVOut);
-    HRESULT createBufferUAV(_In_ ID3D11Device* pDevice, _In_ ID3D11Buffer* pBuffer, _Outptr_ ID3D11UnorderedAccessView** pUAVOut);
-    ID3D11Buffer* createAndCopyToDebugBuf(_In_ ID3D11Device* pDevice, _In_ ID3D11DeviceContext* pd3dImmediateContext, _In_ ID3D11Buffer* pBuffer);
-    void runComputeShader(_In_ ID3D11DeviceContext* pd3dImmediateContext,
-        _In_ ID3D11ComputeShader* pComputeShader,
-        _In_ UINT nNumViews, _In_reads_(nNumViews) ID3D11ShaderResourceView** pShaderResourceViews,
-        _In_opt_ ID3D11Buffer* pCBCS, _In_reads_opt_(dwNumDataBytes) void* pCSData, _In_ DWORD dwNumDataBytes,
-        _In_ ID3D11UnorderedAccessView* pUnorderedAccessView,
-        _In_ UINT X, _In_ UINT Y, _In_ UINT Z);
+	HRESULT createSampler(_In_ ID3D11Device* pDevice, _Outptr_ ID3D11SamplerState** ppSamplerOut);
+	void runComputeShader(_In_ ID3D11DeviceContext* pd3dImmediateContext,
+		_In_ ID3D11ComputeShader* pComputeShader,
+		_In_ UINT nNumViews, _In_reads_(nNumViews) ID3D11ShaderResourceView** pShaderResourceViews,
+		_In_ UINT nNumSamplerStates, _In_reads_(nNumSamplerStates) ID3D11SamplerState** pShaderSamplerStates,
+		_In_opt_ ID3D11Buffer* pCBCS, _In_reads_opt_(dwNumDataBytes) void* pCSData, _In_ DWORD dwNumDataBytes,
+		_In_ ID3D11UnorderedAccessView* pUnorderedAccessView,
+		_In_ UINT X, _In_ UINT Y, _In_ UINT Z);
 
 public:
 	GPUMipMapGenerator();
 	bool generateMip(const ImageData& src_image, ImageData& dst_image);
+	HRESULT saveResult(const wchar_t* resultImageFile);
     ~GPUMipMapGenerator();
 };

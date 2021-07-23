@@ -30,7 +30,7 @@ SamplerState LinearClampSampler
 void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
 {
 	// flip coordinate at reading
-	float2 sampleCoords = 1.0 - (texel_size * dispatchThreadID.xy);
+	float2 sampleCoords = 1.0 - (texel_size * dispatchThreadID.xy + 0.5 * texel_size);
 	float3 pixel = srcTex.SampleLevel(LinearClampSampler, sampleCoords, src_mip_level).rgb;
 	// Desaturate this pixel (i.e make it grayscale)
 	pixel.rgb = pixel.r * 0.3 + pixel.g * 0.59 + pixel.b * 0.11;

@@ -34,7 +34,7 @@ float3 computePixelOddOdd(float2 srcCoords);
 [numthreads(1, 1, 1)]
 void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
 {
-	// Calculate the coordinates of the top left corner of the neighbourhood
+	// Calculate the coordinates of the center of the pixel at the top left corner of the neighbourhood
 	float2 coordInSrc = ((2 * dispatchThreadID.xy) * texel_size) + 0.5 * texel_size;
 	
 	float3 resultingPixel = float3(0.0f, 0.0f, 0.0f);
@@ -140,7 +140,7 @@ float3 computePixelOddEven(float2 srcCoords) {
 // This neighbourhood has size 3x3 (in math matices notation)
 float3 computePixelOddOdd(float2 srcCoords) {
 	float3 resultPixel = float3(0.0f, 0.0f, 0.0f);
-	//We will need a 3x3 neighbourhood sampling	
+	//We will need a 3x3 neighbourhood
 	const float2 neighboursCoords[3][3] = {
 		{ {0.0,                0.0}, {texel_size.x,                0.0}, {2.0 * texel_size.x,                0.0} },
 		{ {0.0,       texel_size.y}, {texel_size.x,       texel_size.y}, {2.0 * texel_size.x,       texel_size.y} },

@@ -39,7 +39,6 @@ HRESULT CreateSrcTexture(_In_ ID3D11Device* pDevice, _In_ const ImageData& image
 HRESULT CreateDstTexture(_In_ ID3D11Device* pDevice, _In_ const ImageData& image, _Outptr_ ID3D11Texture2D** pTextureOut);
 HRESULT CreateTextureSRV(_In_ ID3D11Device* pDevice, _In_ ID3D11Texture2D* pTexture, _Outptr_ ID3D11ShaderResourceView** ppSRVOut);
 HRESULT CreateTextureUAV(_In_ ID3D11Device* pDevice, _In_ ID3D11Texture2D* pTexture, _Outptr_ ID3D11UnorderedAccessView** pUAVOut);
-ID3D11Buffer* CreateAndCopyToDebugBuf(_In_ ID3D11Device* pDevice, _In_ ID3D11DeviceContext* pd3dImmediateContext, _In_ ID3D11Buffer* pBuffer);
 void RunComputeShader(_In_ ID3D11DeviceContext* pd3dImmediateContext,
     _In_ ID3D11ComputeShader* pComputeShader,
     _In_ UINT nNumViews, _In_reads_(nNumViews) ID3D11ShaderResourceView** pShaderResourceViews,
@@ -109,13 +108,16 @@ int __cdecl main()
     printf("done\n");
 
     //const wchar_t* shader_file = L"GenerateMip.hlsl";
-    const wchar_t* shader_file = L"Desaturate.hlsl";
+    //const wchar_t* shader_file = L"Desaturate.hlsl";
+    const wchar_t* shader_file = L"Blur.hlsl";
     printf("Creating Compute Shader from file: %S... ", shader_file);
     if (FAILED(CreateComputeShader(shader_file, "CSMain", g_pDevice, &g_pCS))) {
         throw std::exception("Failed to create compute shader");
     }
     printf("done\n");
 
+    //const char* file_name = "textures/leena.jpg";
+    //const char* file_name = "textures/statue.jpg";
     const char* file_name = "textures/countryside.jpg";
     printf("Loading image from file: %s... ", file_name);
     ImageData input_image{ std::string(file_name) };
@@ -195,7 +197,6 @@ int __cdecl main()
     printf("done\n");
 
     printf("Running Compute Shader...");
-    
     {
         /* Since original RunCompute function does not support to pass a sampler state */
         // Description of the sampler
@@ -225,29 +226,27 @@ int __cdecl main()
 
     // Read back the result from GPU, and saving as an image into disk
     {
-        printf("Cleaning up...\n");
+        const wchar_t* dest_file = L"result.jpg";
+        printf("Preparing to save results to file %S... ", dest_file);
         DirectX::ScratchImage image;
         if (FAILED(DirectX::CaptureTexture(g_pDevice, g_pContext, g_pTextResult, image))) {
             throw std::exception("Fail to adquire the result texture");
         }
-        /*
-        if (FAILED(DirectX::SaveToDDSFile(image.GetImages(), image.GetImageCount(), image.GetMetadata(), DirectX::DDS_FLAGS_NONE, L"result.dds"))) {
-            throw std::exception("Fail to save the dst texture as dds");
-        } 
-        */
         // Since the DX11 resource could contains several planes or mipmap levels, we extract the first image's mipmap 0
         const DirectX::Image* img = image.GetImage(0, 0, 0);
         assert(img);
-        if (FAILED(CoInitialize(NULL))) {
-            throw std::exception("Fail to init the WIC image factory, needed to save wic codecs");
+        if (FAILED(CoInitialize(nullptr))) {
+            throw std::exception("Fail to init the WIC image factory, needed to save using wic codecs");
         }
-        if (FAILED(DirectX::SaveToWICFile(*img, DirectX::WIC_FLAGS_NONE, DirectX::GetWICCodec(DirectX::WIC_CODEC_JPEG), L"result.jpg"))) {
+        if (FAILED(DirectX::SaveToWICFile(*img, DirectX::WIC_FLAGS_NONE, DirectX::GetWICCodec(DirectX::WIC_CODEC_JPEG), dest_file))) {
             throw std::exception("Fail to save the dst texture as jpg");
         }
-        printf("Done\n");
+        printf("done\n");
     }
 
     printf("Cleaning up...\n");
+    SAFE_RELEASE(g_pConstantBuffer);
+    SAFE_RELEASE(g_pSamplerLinear);
     SAFE_RELEASE(g_pTextInput);
     SAFE_RELEASE(g_pTextResult);
     SAFE_RELEASE(g_pTextInputSRV);
@@ -519,32 +518,6 @@ HRESULT CreateConstantBuffer(ID3D11Device* pDevice, UINT uElementSize, void* pIn
 
 }
 
-//--------------------------------------------------------------------------------------
-// Create a CPU accessible buffer and download the content of a GPU buffer into it
-// This function is very useful for debugging CS programs
-//-------------------------------------------------------------------------------------- 
-_Use_decl_annotations_
-ID3D11Buffer* CreateAndCopyToDebugBuf(ID3D11Device* pDevice, ID3D11DeviceContext* pd3dImmediateContext, ID3D11Buffer* pBuffer)
-{
-    ID3D11Buffer* debugbuf = nullptr;
-
-    D3D11_BUFFER_DESC desc = {};
-    pBuffer->GetDesc(&desc);
-    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-    desc.Usage = D3D11_USAGE_STAGING;
-    desc.BindFlags = 0;
-    desc.MiscFlags = 0;
-    if (SUCCEEDED(pDevice->CreateBuffer(&desc, nullptr, &debugbuf)))
-    {
-#if defined(_DEBUG) || defined(PROFILE)
-        debugbuf->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof("Debug") - 1, "Debug");
-#endif
-
-        pd3dImmediateContext->CopyResource(debugbuf, pBuffer);
-    }
-
-    return debugbuf;
-}
 
 //--------------------------------------------------------------------------------------
 // Run CS

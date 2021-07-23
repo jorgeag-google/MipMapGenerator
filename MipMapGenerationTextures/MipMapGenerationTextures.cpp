@@ -66,13 +66,18 @@ int main(int argc, char* argv[]) {
         // Resize the image
         if (use_gpu) {
             gpuGen.generateMip(mip_maps[i - 1u], mip_maps[i]);
+            // Write the new image to disk
+            std::cout << mip_maps[i].print() << std::endl;
+            std::wstring fileName(next_level_image_name.c_str());
+            std::cout << "Writing file: " << next_level_image_name << (gpuGen.saveResult(next_level_image_name) ? " sucessful!" : " failed!") << std::endl;
         }
         else {
             resize_cpu(mip_maps[i - 1u], mip_maps[i]);
+            // Write the new image to disk
+            std::cout << mip_maps[i].print() << std::endl;
+            std::cout << "Writing file: " << next_level_image_name << (mip_maps[i].save(next_level_image_name) ? " sucessful!" : " failed!") << std::endl;
         }
-        // Write the new image to disk
-        std::cout << mip_maps[i].print() << std::endl;
-        std::cout << "Writing file: " << next_level_image_name << (mip_maps[i].save(next_level_image_name) ? " sucessful!" : " failed!") << std::endl;
+        
     }
 
     return EXIT_SUCCESS;
