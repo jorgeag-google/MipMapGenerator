@@ -75,6 +75,7 @@ bool GPUMipMapGenerator::generateMip(const ImageData& src_image, ImageData& dst_
     csConstants.texel_size[0] = 1.0f / src_image.width;
     csConstants.texel_size[1] = 1.0f / src_image.height;
     csConstants.src_mip_level = 0;
+    csConstants.filter_option = 0;
     // If width is even
     if ((src_image.width % 2) == 0) {
         // Test the height

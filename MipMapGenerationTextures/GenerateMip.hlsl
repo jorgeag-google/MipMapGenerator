@@ -1,3 +1,5 @@
+RWTexture2D<float4> dstTex : register(u0); // Destination texture
+
 cbuffer ShaderConstantData : register(b0) {
 
 	float2 texel_size;	// 1.0 / srcTex.Dimensions
@@ -11,14 +13,8 @@ cbuffer ShaderConstantData : register(b0) {
 };
 
 Texture2D<float4> srcTex : register(t0); // Source texture
-RWTexture2D<float4> dstTex : register(u0); // Destination texture
-// Linear clamp sampler.
-SamplerState LinearClampSampler
-{
-	Filter = MIN_MAG_MIP_LINEAR;
-	AddressU = TEXTURE_ADDRESS_CLAMP;
-	AddressV = TEXTURE_ADDRESS_CLAMP;
-};
+
+SamplerState LinearClampSampler : register(s0); // Sampler state
 
 // According to the dimensions of the src texture we can be in one of four cases
 float3 computePixelEvenEven(float2 scrCoords);
@@ -84,18 +80,18 @@ float3 computePixelEvenEven(float2 srcCoords) {
 float3 computePixelEvenOdd(float2 srcCoords) {
 	float3 resultPixel = float3(0.0f, 0.0f, 0.0f);
 	//We will need a 2x3 neighbourhood sampling
-	const float2 neighboursCoords[3][2] = {
+	const float2 neighboursCoords[2][3] = {
 		{ {0.0,          0.0}, {texel_size.x,          0.0}, {2.0 * texel_size.x, 0.0} },
 		{ {0.0, texel_size.y}, {texel_size.x, texel_size.y}, {2.0 * texel_size.x, texel_size.y} }
 	};
 	// Filter or kernell: These are the coeficients for the weighted average. 1/4 = 0.25, 1/8 = 0.125
-	const float coeficients[3][2] = {
+	const float coeficients[2][3] = {
 									  { 0.125f, 0.25f, 0.125f},
 									  { 0.125f, 0.25f, 0.125f}
 	};
 	// Perform the filtering by convolution
-	for (int j = 0; j < 3; j++) {
-		for (int i = 0; i < 2; i++) {
+	for (int j = 0; j < 2; j++) {
+		for (int i = 0; i < 3; i++) {
 			float2 sampleCoords = srcCoords + neighboursCoords[j][i];
 			resultPixel += coeficients[j][i] * srcTex.SampleLevel(LinearClampSampler, sampleCoords, src_mip_level).xyz;
 		}
@@ -109,20 +105,20 @@ float3 computePixelEvenOdd(float2 srcCoords) {
 float3 computePixelOddEven(float2 srcCoords) {
 	float3 resultPixel = float3(0.0f, 0.0f, 0.0f);
 	//We will need a 3x2 neighbourhood sampling
-	const float2 neighboursCoords[2][3] = {
+	const float2 neighboursCoords[3][2] = {
 		{ {0.0,                0.0}, {texel_size.x,               0.0f} },
 		{ {0.0,       texel_size.y}, {texel_size.x,       texel_size.y} },
 		{ {0.0, 2.0 * texel_size.y}, {texel_size.x, 2.0 * texel_size.y} }
 	};
 	// Filter or kernell: These are the coeficients for the weighted average. 1/4 = 0.25, 1/8 = 0.125
-	const float coeficients[2][3] = {
+	const float coeficients[3][2] = {
 									  { 0.125f, 0.125f },
 									  { 0.25f,  0.25f },
 									  { 0.125f, 0.125f }
 	};
 	// Perform the filtering by convolution
-	for (int j = 0; j < 2; j++) {
-		for (int i = 0; i < 3; i++) {
+	for (int j = 0; j < 3; j++) {
+		for (int i = 0; i < 2; i++) {
 			float2 sampleCoords = srcCoords + neighboursCoords[j][i];
 			resultPixel += coeficients[j][i] * srcTex.SampleLevel(LinearClampSampler, sampleCoords, src_mip_level).xyz;
 		}

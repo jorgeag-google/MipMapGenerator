@@ -26,7 +26,29 @@ SamplerState LinearClampSampler
 	AddressV = TEXTURE_ADDRESS_CLAMP;
 };
 
-float3 blur(float2 srcCoords) {
+float3 sharpen(float2 srcCoords, float k);
+float3 blur(float2 srcCoords, float k);
+
+
+[numthreads(1, 1, 1)]
+void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
+{
+	// Calculate the sampling coordinates of the center of this pixel
+	float2 sampleCoords = (texel_size * dispatchThreadID.xy) + (0.5 * texel_size);
+	float3 result = float3(0.0, 0.0, 0.0);
+	switch (filter_option) {
+		case 0: // Blur edges
+			result = blur(sampleCoords, 1.0);
+		break;
+		case 1: // Sharpen edges
+			result = sharpen(sampleCoords, 2.0);
+		break;
+	}
+	// Write reult back to dst texture
+	dstTex[dispatchThreadID.xy] = float4(result, 1.0);
+}
+
+float3 blur(float2 srcCoords, float k) {
 	float3 resultPixel = float3(0.0, 0.0, 0.0);
 
 	float2 samplingDeltas[3][3] = {
@@ -36,9 +58,9 @@ float3 blur(float2 srcCoords) {
 	};
 
 	float kernell[3][3] = {
-		{ 0.0625, 0.125, 0.0625},
-		{ 0.125,  0.25 , 0.125},
-		{ 0.0625, 0.125, 0.0625}
+		{ 0.0625 * k, 0.125 * k, 0.0625 * k},
+		{ 0.125  * k,  0.25 * k, 0.125  * k},
+		{ 0.0625 * k, 0.125 * k, 0.0625 * k}
 	};
 
 	for (int j = 0; j < 3; j++) {
@@ -74,16 +96,4 @@ float3 sharpen(float2 srcCoords, float k) {
 	}
 
 	return resultPixel;
-}
-
-[numthreads(1, 1, 1)]
-void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
-{
-	// Calculate the sampling coordinates of the center of this pixel
-	float2 sampleCoords = texel_size * dispatchThreadID.xy + 0.5 * texel_size;
-	// Blur the pixel
-	//float3 result = blur(sampleCoords);
-	float3 result = sharpen(sampleCoords, 2.0);
-	// Write reult back to dst texture
-	dstTex[dispatchThreadID.xy] = float4(result, 1.0);
 }

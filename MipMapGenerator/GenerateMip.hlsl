@@ -88,18 +88,18 @@ float3 computePixelEvenEven(int2 srcCoords) {
 float3 computePixelEvenOdd(int2 srcCoords) {
 	float3 resultPixel = float3(0.0f, 0.0f, 0.0f);
 	//We will need a 2x3 neighbourhood sampling
-	const int2 neighbours[3][2] = {
+	const int2 neighbours[2][3] = {
 		{ {srcCoords.x, srcCoords.y    }, {srcCoords.x + 1, srcCoords.y    }, {srcCoords.x + 2, srcCoords.y    } },
 		{ {srcCoords.x, srcCoords.y + 1}, {srcCoords.x + 1, srcCoords.y + 1}, {srcCoords.x + 2, srcCoords.y + 1} }
 	};
 	// Filter or kernell: These are the coeficients for the weighted average. 1/4 = 0.25, 1/8 = 0.125
-	const float coeficients[3][2] = {
+	const float coeficients[2][3] = {
 									  { 0.125f, 0.25f, 0.125f},
 									  { 0.125f, 0.25f, 0.125f}
 	};
 	// Perform the filtering by convolution
-	for (int j = 0; j < 3; j++) {
-		for (int i = 0; i < 2; i++) {
+	for (int j = 0; j < 2; j++) {
+		for (int i = 0; i < 3; i++) {
 			resultPixel += coeficients[j][i] * readPixel(neighbours[j][i].x, neighbours[j][i].y);
 		}
 	}
@@ -112,20 +112,20 @@ float3 computePixelEvenOdd(int2 srcCoords) {
 float3 computePixelOddEven(int2 srcCoords) {
 	float3 resultPixel = float3(0.0f, 0.0f, 0.0f);
 	//We will need a 3x2 neighbourhood sampling
-	const int2 neighbours[2][3] = {
+	const int2 neighbours[3][2] = {
 		{ {srcCoords.x, srcCoords.y    }, {srcCoords.x + 1, srcCoords.y    } },
 		{ {srcCoords.x, srcCoords.y + 1}, {srcCoords.x + 1, srcCoords.y + 1} },
 		{ {srcCoords.x, srcCoords.y + 2}, {srcCoords.x + 1, srcCoords.y + 2} }
 	};
 	// Filter or kernell: These are the coeficients for the weighted average. 1/4 = 0.25, 1/8 = 0.125
-	const float coeficients[2][3] = {
+	const float coeficients[3][2] = {
 									  { 0.125f, 0.125f },
 									  { 0.25f,  0.25f },
 									  { 0.125f, 0.125f }
 	};
 	// Perform the filtering by convolution
-	for (int j = 0; j < 2; j++) {
-		for (int i = 0; i < 3; i++) {
+	for (int j = 0; j < 3; j++) {
+		for (int i = 0; i < 2; i++) {
 			resultPixel += coeficients[j][i] * readPixel(neighbours[j][i].x, neighbours[j][i].y);
 		}
 	}

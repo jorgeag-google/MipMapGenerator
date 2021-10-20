@@ -109,7 +109,7 @@ int __cdecl main()
 
     //const wchar_t* shader_file = L"GenerateMip.hlsl";
     //const wchar_t* shader_file = L"Desaturate.hlsl";
-    const wchar_t* shader_file = L"Blur.hlsl";
+    const wchar_t* shader_file = L"Filters.hlsl";
     printf("Creating Compute Shader from file: %S... ", shader_file);
     if (FAILED(CreateComputeShader(shader_file, "CSMain", g_pDevice, &g_pCS))) {
         throw std::exception("Failed to create compute shader");
@@ -175,7 +175,7 @@ int __cdecl main()
     printf("Prepairing constant buffer...");
     ShaderConstantData csConstants;
     csConstants.src_mip_level = 0;
-    csConstants.filter_option = 0;
+    csConstants.filter_option = 1;
     csConstants.texel_size[0] = 1.0f / input_image.width;
     csConstants.texel_size[1] = 1.0f / input_image.height;
     csConstants.src_width = input_image.width;
